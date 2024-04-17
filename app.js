@@ -4,8 +4,19 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 
+const models = require('./models');
+
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
+
+// Sync models with database
+models.sequelize.sync()
+    .then(() => {
+        console.log('Models synced successfully.');
+    })
+    .catch(err => {
+        console.error('Error syncing models:', err);
+    });
 
 var app = express();
 
@@ -18,6 +29,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/toastui', express.static(path.join(__dirname, 'node_modules/@toast-ui/calendar/dist')));
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);

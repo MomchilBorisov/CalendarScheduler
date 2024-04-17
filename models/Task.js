@@ -1,36 +1,31 @@
 module.exports = (sequelize, DataTypes) => {
-    const User = sequelize.define('User', {
+    const Task = sequelize.define('Task', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
-            autoIncrement: true // if you want the id to auto-increment
+            autoIncrement: true // if you want the id to auto-increme
         },
-        username: {
+        title: {
             type: DataTypes.STRING,
             allowNull: false,
-            unique: true
         },
-        passwordhash: {
+        description: {
             type: DataTypes.STRING,
             allowNull: false
         },
-        name: {
+        done: {
             type: DataTypes.STRING,
             allowNull: false
         },
-        surname: {
+        schedule_start: {
             type: DataTypes.STRING,
             allowNull: false
         },
-        country: {
+        schedule_end: {
             type: DataTypes.STRING,
             allowNull: false
         },
-        city: {
-            type: DataTypes.STRING,
-            allowNull: false
-        },
-        phone: {
+        color: {
             type: DataTypes.STRING,
             allowNull: false
         }
@@ -39,5 +34,5 @@ module.exports = (sequelize, DataTypes) => {
         // You can specify additional options here
     });
 
-    return User;
+    return Task;
 };
