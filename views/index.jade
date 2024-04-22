@@ -10,10 +10,6 @@ block content
     const calendar = new Calendar('#calendar', {
       defaultView: 'week',
       template: {
-        time(event) {
-          const { start, end, title } = event;
-          return `<span style="color: white;">${formatTime(start)}~${formatTime(end)} ${title}</span>`;
-        },
         allday(event) {
           return `<span style="color: gray;">${event.title}</span>`;
         },
@@ -24,10 +20,24 @@ block content
           name: 'Personal',
           backgroundColor: '#03bd9e',
         },
-        {
-          id: 'cal2',
-          name: 'Work',
-          backgroundColor: '#00a9ff',
-        },
       ],
     });
+  each task in tasks
+    script.
+      let start = new Date ("#{task.schedule_start}");
+      let end = new Date("#{task.schedule_end}");
+      //start = `${start.getYear() + 1900}-${start.getMonth() + 1}-${start.getDate()}T${start.getHours()}:${start.getMinutes()}:${start.getSeconds()}+03:00`;
+      //end = `${end.getYear() + 1900}-${end.getMonth() + 1}-${end.getDate()}T${end.getHours()}:${end.getMinutes()}:${end.getSeconds()}+03:00`;
+      calendar.createEvents([{
+        id: '#{task.id}',
+        calendarId: 'cal1',
+        title: '#{task.title}',
+        category: 'time',
+        start: start, // Adjust this according to your task schema
+        end: end, // Adjust this according to your task schema
+        //start: '2024-04-22T22:50:00+09:00',
+        //end: '2024-04-22T22:30:00+09:00'
+      }]);
+
+  script 
+

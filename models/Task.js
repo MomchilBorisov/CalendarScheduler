@@ -14,15 +14,15 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false
         },
         done: {
-            type: DataTypes.STRING,
-            allowNull: false
+            type: DataTypes.DATE,
+            allowNull: true
         },
         schedule_start: {
-            type: DataTypes.STRING,
+            type: DataTypes.DATE,
             allowNull: false
         },
         schedule_end: {
-            type: DataTypes.STRING,
+            type: DataTypes.DATE,
             allowNull: false
         },
         color: {
