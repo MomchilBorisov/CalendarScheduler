@@ -1,99 +1,301 @@
 <!DOCTYPE html>
 <html lang="bg">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Календар — общи данни</title>
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Календар — кой е работил</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
+  :root{
+    --bg:#f7f8fb; --card:#fff; --accent:#2463d6; --muted:#666;
   }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-  }
-  td, th {
-    border: 1px solid #aaa;
-    padding: 8px;
-    text-align: center;
-  }
-  td:hover {
-    background: #eee;
-    cursor: pointer;
-  }
-  .day {
-    height: 100px;
-    vertical-align: top;
-    position: relative;
-  }
-  .entry {
-    font-size: 14px;
-    margin-top: 4px;
-    text-align: left;
-  }
-  #modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: #0005;
-    align-items: center;
-    justify-content: center;
-  }
-  #modal-content {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    width: 300px;
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:#111}
+  .wrap{max-width:920px;margin:18px auto;padding:16px}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between}
+  h1{font-size:1.2rem;margin:0}
+  .controls{display:flex;gap:8px;align-items:center}
+  button,select,input[type="number"]{background:var(--card);border:1px solid #e6e9ef;padding:8px 10px;border-radius:8px}
+  button.primary{background:var(--accent);color:#fff;border:none}
+  .calendar{margin-top:14px;background:transparent;border-radius:10px;padding:8px}
+  .weekdays, .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .cell{min-height:84px;background:var(--card);border-radius:8px;padding:8px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;border:1px solid #e6e9ef}
+  .cell.empty{background:transparent;border:none;cursor:default}
+  .cell .daynum{font-weight:600}
+  .badge{display:inline-block;padding:2px 6px;border-radius:999px;font-size:12px;background:#e9f0ff;color:#164dbb}
+  .small{font-size:0.86rem;color:var(--muted)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;padding:12px;z-index:50}
+  .modal-card{width:100%;max-width:520px;background:var(--card);padding:16px;border-radius:10px}
+  .row{display:flex;gap:8px;align-items:center}
+  label{font-size:0.85rem;color:var(--muted)}
+  ul.list{margin:8px 0 0;padding:0;list-style:none;max-height:220px;overflow:auto}
+  li.item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;border:1px solid #f0f2f5;margin-bottom:6px;background:#fafcff}
+  .actions{display:flex;gap:8px}
+  .export{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  @media (max-width:640px){
+    .cell{min-height:72px;padding:6px}
+    header{flex-direction:column;align-items:flex-start;gap:10px}
   }
 </style>
 </head>
 <body>
+  <div class="wrap">
+    <header>
+      <h1>Календар — кой е работил</h1>
+      <div class="controls">
+        <button id="prevBtn">⟵</button>
+        <button id="todayBtn" class="primary">Днес</button>
+        <button id="nextBtn">⟶</button>
+      </div>
+    </header>
 
-<h1>Календар — кой е работил и кога</h1>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+      <label class="small">Месец:
+        <select id="monthSelect"></select>
+      </label>
+      <label class="small">Година:
+        <input id="yearInput" type="number" min="1900" max="2100" style="width:100px">
+      </label>
+      <button id="showBtn">Покажи</button>
+      <div style="margin-left:auto" class="small">Данните се пазят само в този браузър (localStorage)</div>
+    </div>
 
-<div>
-  <label>Месец:
-    <input type="number" id="month" min="1" max="12" value="1">
-  </label>
+    <div class="calendar" id="calendarArea" aria-live="polite">
+      <div class="weekdays" id="weekdays"></div>
+      <div class="grid" id="grid"></div>
+    </div>
 
-  <label>Година:
-    <input type="number" id="year" value="2025">
-  </label>
+    <div class="export">
+      <button id="exportBtn">Експорт (JSON)</button>
+      <button id="importBtn">Импорт (JSON)</button>
+      <input id="fileInput" type="file" accept="application/json" style="display:none">
+      <button id="clearBtn">Изчисти всички данни</button>
+    </div>
 
-  <button onclick="renderCalendar()">Покажи</button>
-</div>
-
-<br>
-<div id="calendar"></div>
-
-<!-- Modal -->
-<div id="modal">
-  <div id="modal-content">
-    <h3 id="selectedDate"></h3>
-
-    <label>Име:
-      <input id="nameInput">
-    </label><br><br>
-
-    <label>Начало:
-      <input id="startInput" type="time">
-    </label><br><br>
-
-    <label>Край:
-      <input id="endInput" type="time">
-    </label><br><br>
-
-    <button onclick="saveEntry()">Запази</button>
-    <button onclick="closeModal()">Затвори</button>
-
-    <h4>Въведени:</h4>
-    <div id="recordList"></div>
+    <p class="small" style="margin-top:10px">За да могат и други хора да пишат едновременно — качи този файл онлайн (GitHub Pages / Netlify). Ако искаш, ще помогна с качването.</p>
   </div>
-</div>
 
-<!-- Firebase логика -->
-<script type="module" src="app.js"></script>
+  <!-- Modal -->
+  <div id="modal" style="display:none" class="modal" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong id="modalTitle">Дата</strong>
+        <div class="small" id="modalDateLabel"></div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label class="small">Добави име</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input id="nameInput" placeholder="Име" style="flex:1;padding:8px;border-radius:8px;border:1px solid #e6e9ef">
+          <button id="addNameBtn" class="primary">Добави</button>
+        </div>
+
+        <label class="small" style="margin-top:12px;display:block">Списък</label>
+        <ul id="namesList" class="list"></ul>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button id="closeModalBtn">Затвори</button>
+          <button id="saveModalBtn" class="primary">Готово</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const monthSelect = document.getElementById('monthSelect');
+  const yearInput = document.getElementById('yearInput');
+  const grid = document.getElementById('grid');
+  const weekdaysEl = document.getElementById('weekdays');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const todayBtn = document.getElementById('todayBtn');
+  const showBtn = document.getElementById('showBtn');
+
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalDateLabel = document.getElementById('modalDateLabel');
+  const nameInput = document.getElementById('nameInput');
+  const addNameBtn = document.getElementById('addNameBtn');
+  const namesList = document.getElementById('namesList');
+  const closeModalBtn = document.getElementById('closeModalBtn');
+  const saveModalBtn = document.getElementById('saveModalBtn');
+
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const fileInput = document.getElementById('fileInput');
+  const clearBtn = document.getElementById('clearBtn');
+
+  const STORAGE_KEY = 'workCalendar_v1';
+
+  const monthNames = ['Януари','Февруари','Март','Април','Май','Юни','Юли','Август','Септември','Октомври','Ноември','Декември'];
+  const weekNames = ['Пон','Вт','Ср','Чет','Пет','Съб','Нед'];
+
+  // Populate month select
+  monthNames.forEach((m,i)=>{
+    const opt = document.createElement('option'); opt.value = i; opt.textContent = m;
+    monthSelect.appendChild(opt);
+  });
+
+  // Weekday header
+  weekNames.forEach(w=>{
+    const el = document.createElement('div'); el.className='small'; el.style.textAlign='center'; el.textContent = w;
+    weekdaysEl.appendChild(el);
+  });
+
+  // state
+  const today = new Date();
+  let curYear = today.getFullYear();
+  let curMonth = today.getMonth();
+  let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  let activeKey = null;
+
+  function saveStorage(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+  function monthDays(year,month){ return new Date(year, month+1, 0).getDate(); }
+
+  function startMonIndex(year,month){
+    // JS getDay: 0=Sun,1=Mon... convert to 0=Mon..6=Sun
+    const d = new Date(year,month,1).getDay(); return d===0?6:d-1;
+  }
+
+  function formatKey(y,m,d){
+    const mm = String(m+1).padStart(2,'0');
+    const dd = String(d).padStart(2,'0');
+    return `${y}-${mm}-${dd}`;
+  }
+
+  function render(){
+    monthSelect.value = curMonth;
+    yearInput.value = curYear;
+    grid.innerHTML = '';
+
+    const days = monthDays(curYear,curMonth);
+    const startIndex = startMonIndex(curYear,curMonth);
+    const totalCells = Math.ceil((startIndex + days)/7)*7;
+
+    for(let i=0;i<totalCells;i++){
+      const cell = document.createElement('div'); cell.className='cell';
+      const idx = i - startIndex + 1;
+      if(i < startIndex || idx > days){
+        cell.classList.add('empty'); cell.innerHTML = ''; grid.appendChild(cell); continue;
+      }
+      const key = formatKey(curYear,curMonth,idx);
+      const dayNum = document.createElement('div'); dayNum.className='daynum'; dayNum.textContent = idx;
+      const info = document.createElement('div'); info.className='small';
+      const arr = data[key] || [];
+      if(arr.length) {
+        const line = document.createElement('div');
+        line.innerHTML = `<span class="badge">${arr.length}</span> ${arr.slice(0,2).join(', ')}${arr.length>2? '…':''}`;
+        info.appendChild(line);
+      } else {
+        info.textContent = '';
+      }
+      cell.appendChild(dayNum);
+      cell.appendChild(info);
+      cell.onclick = ()=> openModalFor(key, idx);
+      // highlight today
+      if(curYear===today.getFullYear() && curMonth===today.getMonth() && idx===today.getDate()){
+        cell.style.boxShadow = '0 0 0 2px rgba(36,99,214,0.12)';
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  function openModalFor(key, day){
+    activeKey = key;
+    modalTitle.textContent = `Добави/преглед — ${day} ${monthNames[curMonth]} ${curYear}`;
+    modalDateLabel.textContent = key;
+    nameInput.value = '';
+    renderNamesList();
+    modal.style.display = 'flex';
+    nameInput.focus();
+  }
+
+  function renderNamesList(){
+    namesList.innerHTML = '';
+    (data[activeKey] || []).forEach((name, idx)=>{
+      const li = document.createElement('li'); li.className='item';
+      const left = document.createElement('div'); left.textContent = name;
+      const right = document.createElement('div'); right.className='actions';
+      const del = document.createElement('button'); del.textContent='Изтрий'; del.onclick = (e)=>{ e.stopPropagation(); removeName(idx); };
+      right.appendChild(del);
+      li.appendChild(left); li.appendChild(right);
+      namesList.appendChild(li);
+    });
+    if((data[activeKey] || []).length===0){
+      const li = document.createElement('li'); li.className='small'; li.textContent = 'Няма добавени имена';
+      namesList.appendChild(li);
+    }
+  }
+
+  function addName(){
+    const val = nameInput.value.trim();
+    if(!val) return;
+    if(!data[activeKey]) data[activeKey]=[];
+    data[activeKey].push(val);
+    nameInput.value='';
+    saveStorage();
+    renderNamesList();
+    render();
+  }
+
+  function removeName(idx){
+    if(!data[activeKey]) return;
+    data[activeKey].splice(idx,1);
+    if(data[activeKey].length===0) delete data[activeKey];
+    saveStorage();
+    renderNamesList();
+    render();
+  }
+
+  addNameBtn.onclick = addName;
+  nameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ addName(); } });
+
+  closeModalBtn.onclick = ()=>{ modal.style.display='none'; activeKey=null; }
+  saveModalBtn.onclick = ()=>{ modal.style.display='none'; activeKey=null; }
+
+  prevBtn.onclick = ()=>{ if(curMonth===0){curMonth=11;curYear--;} else curMonth--; render(); }
+  nextBtn.onclick = ()=>{ if(curMonth===11){curMonth=0;curYear++;} else curMonth++; render(); }
+  todayBtn.onclick = ()=>{ curYear=today.getFullYear(); curMonth=today.getMonth(); render(); }
+  showBtn.onclick = ()=>{ curYear = parseInt(yearInput.value)||curYear; curMonth = parseInt(monthSelect.value)||curMonth; render(); }
+
+  exportBtn.onclick = ()=>{
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download = `work-calendar-${curYear}-${curMonth+1}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  importBtn.onclick = ()=> fileInput.click();
+  fileInput.onchange = ()=>{
+    const f = fileInput.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=> {
+      try{
+        const obj = JSON.parse(reader.result);
+        data = obj || {};
+        saveStorage();
+        render();
+        alert('Импорт успешно завършен.');
+      }catch(err){
+        alert('Файла не е валиден JSON.');
+      }
+    };
+    reader.readAsText(f);
+  };
+
+  clearBtn.onclick = ()=>{
+    if(confirm('Сигурни ли сте? Това ще изтрие всички данни.')){
+      data = {}; saveStorage(); render();
+    }
+  };
+
+  // init
+  curMonth = today.getMonth(); curYear = today.getFullYear();
+  render();
+})();
+</script>
 </body>
 </html>
+
+
