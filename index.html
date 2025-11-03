@@ -100,8 +100,16 @@
     </div>
   </div>
 
-<script>
-(function(){
+<script type="module">
+import { db } from "./firebase.js";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc
+} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+(function() {
   const monthSelect = document.getElementById('monthSelect');
   const yearInput = document.getElementById('yearInput');
   const grid = document.getElementById('grid');
@@ -125,46 +133,52 @@
   const fileInput = document.getElementById('fileInput');
   const clearBtn = document.getElementById('clearBtn');
 
-  const STORAGE_KEY = 'workCalendar_v1';
-
   const monthNames = ['Януари','Февруари','Март','Април','Май','Юни','Юли','Август','Септември','Октомври','Ноември','Декември'];
   const weekNames = ['Пон','Вт','Ср','Чет','Пет','Съб','Нед'];
 
-  // Populate month select
   monthNames.forEach((m,i)=>{
     const opt = document.createElement('option'); opt.value = i; opt.textContent = m;
     monthSelect.appendChild(opt);
   });
 
-  // Weekday header
   weekNames.forEach(w=>{
     const el = document.createElement('div'); el.className='small'; el.style.textAlign='center'; el.textContent = w;
     weekdaysEl.appendChild(el);
   });
 
-  // state
   const today = new Date();
   let curYear = today.getFullYear();
   let curMonth = today.getMonth();
-  let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
   let activeKey = null;
+  let data = {};
 
-  function saveStorage(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+  async function loadDataFor(key) {
+    const ref = doc(db, "calendar", key);
+    const snap = await getDoc(ref);
+    return snap.exists() ? snap.data().names : [];
+  }
+
+  async function saveDataFor(key, arr) {
+    const ref = doc(db, "calendar", key);
+    await setDoc(ref, { names: arr });
+  }
+
+  async function loadMonthData(year, month) {
+    data = {};
+    const days = monthDays(year, month);
+    for (let d = 1; d <= days; d++) {
+      const key = formatKey(year, month, d);
+      data[key] = await loadDataFor(key);
+    }
+  }
 
   function monthDays(year,month){ return new Date(year, month+1, 0).getDate(); }
+  function startMonIndex(year,month){ const d=new Date(year,month,1).getDay(); return d===0?6:d-1; }
+  function formatKey(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
 
-  function startMonIndex(year,month){
-    // JS getDay: 0=Sun,1=Mon... convert to 0=Mon..6=Sun
-    const d = new Date(year,month,1).getDay(); return d===0?6:d-1;
-  }
+  async function render(){
+    await loadMonthData(curYear, curMonth);
 
-  function formatKey(y,m,d){
-    const mm = String(m+1).padStart(2,'0');
-    const dd = String(d).padStart(2,'0');
-    return `${y}-${mm}-${dd}`;
-  }
-
-  function render(){
     monthSelect.value = curMonth;
     yearInput.value = curYear;
     grid.innerHTML = '';
@@ -181,9 +195,10 @@
       }
       const key = formatKey(curYear,curMonth,idx);
       const dayNum = document.createElement('div'); dayNum.className='daynum'; dayNum.textContent = idx;
+
       const info = document.createElement('div'); info.className='small';
-      const arr = data[key] || [];
-      if(arr.length) {
+      const arr = data[key];
+      if(arr && arr.length) {
         const line = document.createElement('div');
         line.innerHTML = `<span class="badge">${arr.length}</span> ${arr.slice(0,2).join(', ')}${arr.length>2? '…':''}`;
         info.appendChild(line);
@@ -193,7 +208,7 @@
       cell.appendChild(dayNum);
       cell.appendChild(info);
       cell.onclick = ()=> openModalFor(key, idx);
-      // highlight today
+
       if(curYear===today.getFullYear() && curMonth===today.getMonth() && idx===today.getDate()){
         cell.style.boxShadow = '0 0 0 2px rgba(36,99,214,0.12)';
       }
@@ -201,55 +216,65 @@
     }
   }
 
-  function openModalFor(key, day){
+  async function openModalFor(key, day){
     activeKey = key;
     modalTitle.textContent = `Добави/преглед — ${day} ${monthNames[curMonth]} ${curYear}`;
     modalDateLabel.textContent = key;
     nameInput.value = '';
-    renderNamesList();
+    await loadDay();
     modal.style.display = 'flex';
     nameInput.focus();
   }
 
+  async function loadDay(){
+    data[activeKey] = await loadDataFor(activeKey);
+    renderNamesList();
+    render();
+  }
+
   function renderNamesList(){
     namesList.innerHTML = '';
-    (data[activeKey] || []).forEach((name, idx)=>{
+    const arr = data[activeKey] || [];
+    if(arr.length===0){
+      const li = document.createElement('li'); li.className='small'; li.textContent='Няма добавени имена';
+      namesList.appendChild(li);
+      return;
+    }
+    arr.forEach((name, idx)=>{
       const li = document.createElement('li'); li.className='item';
       const left = document.createElement('div'); left.textContent = name;
       const right = document.createElement('div'); right.className='actions';
-      const del = document.createElement('button'); del.textContent='Изтрий'; del.onclick = (e)=>{ e.stopPropagation(); removeName(idx); };
+      const del = document.createElement('button'); del.textContent='Изтрий';
+      del.onclick = async (e)=>{
+        e.stopPropagation();
+        await removeName(idx);
+      };
       right.appendChild(del);
       li.appendChild(left); li.appendChild(right);
       namesList.appendChild(li);
     });
-    if((data[activeKey] || []).length===0){
-      const li = document.createElement('li'); li.className='small'; li.textContent = 'Няма добавени имена';
-      namesList.appendChild(li);
-    }
   }
 
-  function addName(){
+  async function addName(){
     const val = nameInput.value.trim();
     if(!val) return;
     if(!data[activeKey]) data[activeKey]=[];
     data[activeKey].push(val);
     nameInput.value='';
-    saveStorage();
-    renderNamesList();
-    render();
+
+    await saveDataFor(activeKey, data[activeKey]);
+    await loadDay();
   }
 
-  function removeName(idx){
+  async function removeName(idx){
     if(!data[activeKey]) return;
     data[activeKey].splice(idx,1);
-    if(data[activeKey].length===0) delete data[activeKey];
-    saveStorage();
-    renderNamesList();
-    render();
+    await saveDataFor(activeKey, data[activeKey]);
+    await loadDay();
   }
 
   addNameBtn.onclick = addName;
-  nameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ addName(); } });
+  nameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') addName(); });
 
   closeModalBtn.onclick = ()=>{ modal.style.display='none'; activeKey=null; }
   saveModalBtn.onclick = ()=>{ modal.style.display='none'; activeKey=null; }
@@ -257,45 +282,15 @@
   prevBtn.onclick = ()=>{ if(curMonth===0){curMonth=11;curYear--;} else curMonth--; render(); }
   nextBtn.onclick = ()=>{ if(curMonth===11){curMonth=0;curYear++;} else curMonth++; render(); }
   todayBtn.onclick = ()=>{ curYear=today.getFullYear(); curMonth=today.getMonth(); render(); }
-  showBtn.onclick = ()=>{ curYear = parseInt(yearInput.value)||curYear; curMonth = parseInt(monthSelect.value)||curMonth; render(); }
-
-  exportBtn.onclick = ()=>{
-    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download = `work-calendar-${curYear}-${curMonth+1}.json`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  importBtn.onclick = ()=> fileInput.click();
-  fileInput.onchange = ()=>{
-    const f = fileInput.files[0]; if(!f) return;
-    const reader = new FileReader();
-    reader.onload = ()=> {
-      try{
-        const obj = JSON.parse(reader.result);
-        data = obj || {};
-        saveStorage();
-        render();
-        alert('Импорт успешно завършен.');
-      }catch(err){
-        alert('Файла не е валиден JSON.');
-      }
-    };
-    reader.readAsText(f);
-  };
-
-  clearBtn.onclick = ()=>{
-    if(confirm('Сигурни ли сте? Това ще изтрие всички данни.')){
-      data = {}; saveStorage(); render();
-    }
-  };
+  showBtn.onclick = ()=>{ curYear = +yearInput.value||curYear; curMonth = +monthSelect.value||curMonth; render(); }
 
   // init
-  curMonth = today.getMonth(); curYear = today.getFullYear();
   render();
 })();
 </script>
+
 </body>
 </html>
+
 
 
